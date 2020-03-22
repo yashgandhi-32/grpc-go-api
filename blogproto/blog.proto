@@ -5,12 +5,19 @@ package blogproto;
 option go_package="blogproto";
 
 message Blog{
-    string id =1;
+    string id=1;
     string author_id=2;
     string title=3;
     string content=4;
 }
 
+message CreateBlogRequest{
+    Blog blog=1;
+}
+message CreateBlogReseponse{
+    Blog blog=1;
+}
+
 service BlogServie{
-    
+    rpc CreateBlog (CreateBlogRequest) returns (CreateBlogReseponse);
 }

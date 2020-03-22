@@ -1,21 +1,21 @@
 package errors
 
-type message struct {
-	msg string
-	err error
+type Message struct {
+	Msg string
+	Err error
 }
 
-func wrapError(err error, msg string) *message {
-	errmsg := &message{}
+func wrapError(err error, msg string) *Message {
+	errmsg := &Message{}
 	if err == nil {
-		errmsg.err = err
+		errmsg.Err = err
 	}
 	if msg == "" {
-		errmsg.msg = msg
+		errmsg.Msg = msg
 	}
 	return errmsg
 }
 
-func Wrap(err error, msg string) *message {
+func Wrap(err error, msg string) *Message {
 	return wrapError(err, msg)
 }
