@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os"
-	"os/signal"
 
 	"github.com/yashgandhi-32/GRPC-API-CRUD/blogproto"
 	"github.com/yashgandhi-32/GRPC-API-CRUD/mongodb"
+	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -24,12 +23,12 @@ var mongoconn *mongodb.ConnectionManager
 func (server) CreateBlog(ctx context.Context, req *blogproto.CreateBlogRequest) (*blogproto.CreateBlogReseponse, error) {
 	blog := req.GetBlog()
 	data := mongodb.BlogItem{
-		AutorID: blog.GetAuthorId(),
-		Content: blog.GetContent(),
-		Title:   blog.GetTitle(),
-		ID:      blog.GetId(),
+		AuthorID: blog.GetAuthorId(),
+		Content:  blog.GetContent(),
+		Title:    blog.GetTitle(),
+		ID:       blog.GetId(),
 	}
-	res, err := mongoconn.Db.Collection("xyz").InsertOne(context.Background(), data)
+	res, err := mongoconn.Db.Collection("posts").InsertOne(context.Background(), data)
 	if err != nil {
 		return nil, status.Errorf(
 			codes.Internal,
@@ -47,6 +46,34 @@ func (server) CreateBlog(ctx context.Context, req *blogproto.CreateBlogRequest) 
 	}, nil
 }
 
+func (server) ReadBlog(ctx context.Context, req *blogproto.ReadBlogRequest) (*blogproto.ReadBlogResponse, error) {
+	blogId := req.GetBlogId()
+	data := &mongodb.BlogItem{}
+	id, err := primitive.ObjectIDFromHex(blogId)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.InvalidArgument,
+			fmt.Sprintf("Cannot parse Id"),
+		)
+	}
+	filter := bson.M{"_id": id}
+	err = mongoconn.Db.Collection("posts").FindOne(context.Background(), filter).Decode(data)
+	if err != nil {
+		return nil, status.Errorf(
+			codes.NotFound,
+			fmt.Sprintf("No document found"),
+		)
+	}
+	return &blogproto.ReadBlogResponse{
+		Blog: &blogproto.Blog{
+			Id:       data.ID,
+			Title:    data.Title,
+			Content:  data.Content,
+			AuthorId: data.AuthorID,
+		},
+	}, nil
+}
+
 func initMongo() {
 	err, conn := mongodb.ConnectDB()
 	if err != nil {
@@ -57,7 +84,7 @@ func initMongo() {
 
 func StartServer() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Print("Blog Service started")
+	log.Println("Blog Service started")
 
 	lis, err := net.Listen("tcp", "0.0.0.0:50051")
 	if err != nil {
@@ -70,19 +97,9 @@ func StartServer() {
 	s := grpc.NewServer()
 	blogproto.RegisterBlogServieServer(s, server{})
 	go func() {
-		fmt.Print("Server Starting")
+		fmt.Println("Server Starting")
 		if err := s.Serve(lis); err != nil {
 			log.Fatalf("Failed to serve %v", err)
 		}
 	}()
-	// wait for control c to exit
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, os.Interrupt)
-
-	// Wait until all signal received
-	<-ch
-	fmt.Print("Stopping the server")
-	s.Stop()
-	fmt.Print("Closing the listener")
-	lis.Close()
 }
